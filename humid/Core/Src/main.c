@@ -93,8 +93,8 @@ void delay(uint16_t Delay){ // will delay = Delay * 1 micro second (Delay should
     while ((uint16_t)__HAL_TIM_GET_COUNTER(&htim3) < Delay);// wait for the counter to reach the us input in the parameter
 }
 
-uint8_t Rh_byte1, Rh_byte2, Temp_byte1, Temp_byte2;
-uint16_t SUM, RH, TEMP;
+uint8_t Rh_byte1, Rh_byte2, Temp_byte1, Temp_byte2, SUM;
+uint16_t RH, TEMP;
 
 float Temp = 0,Humi = 0;
 uint8_t Presence = 0;
@@ -200,9 +200,14 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start(&htim3);
+
+
+
+  //HAL_TIM_Base_Start(&htim3);
   //uint8_t T[3],H[3],Check;
   //uint16_t Tsum;
+
+
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -251,7 +256,39 @@ int main(void)
   {
 
     /* USER CODE END WHILE */
+	  	  /*HAL_UART_Transmit(&huart2, "Do\r\n", 4, 10);
+	  	  DHT22_Start();
+	  	  Presence = DHT22_Check_Response();
+	  	  Rh_byte1 = DHT22_Read();
+	  	  Rh_byte2 = DHT22_Read();
+	  	  Temp_byte1 = DHT22_Read();
+	  	  Temp_byte2 = DHT22_Read();
+	  	  SUM = DHT22_Read();
+	  	  Check = Rh_byte1 + Rh_byte2 + Temp_byte1 + Temp_byte2;
+	  	  /*
+	  	  TEMP = ((Temp_byte1<<8)|Temp_byte2)&32767;
+	  	  RH = ((Rh_byte1<<8)|Rh_byte2)&32767;
+	  	  */
+	  	  Temp = (float)(TEMP/10.0);
+	  	  Humi = (float)(RH/10.0);
 
+	  	  Tsum = Temp_byte1*256 + Temp_byte2;
+	  	  T[0] = '0' + Tsum/100;
+	  	  T[1] = '0' + (Tsum%100)/10;
+	  	  T[2] = '0' + (Tsum%10);
+	  //	  H[0] = '0' + Temp_byte2/100;
+	  //	  H[1] = '0' + (Temp_byte2%100)/10;
+	  //	  H[2] = '0' + (Temp_byte2%10);
+	  	  HAL_UART_Transmit(&huart2, T, 3, 10);
+	  	  HAL_UART_Transmit(&huart2, "\r\n", 2, 10);
+	  //	  HAL_UART_Transmit(&huart2, H, 3, 10);
+	  //	  HAL_UART_Transmit(&huart2, "\r\n", 2, 10);
+	  	  if(Check == SUM){
+	  		  HAL_UART_Transmit(&huart2, "Good\r\n", 6, 10);
+	  	  }else{
+	  		  HAL_UART_Transmit(&huart2, "Bad\r\n", 5, 10);
+	  	  }
+	  	  HAL_Delay(3000);*/
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -397,9 +434,9 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
+  htim3.Init.Prescaler = 49;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 65535;
+  htim3.Init.Period = 99;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -476,6 +513,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
@@ -501,6 +541,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PB8 */
+  GPIO_InitStruct.Pin = GPIO_PIN_8;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
 }
@@ -515,17 +562,22 @@ static void MX_GPIO_Init(void)
   * @param  argument: Not used
   * @retval None
   */
+/*
+HAL_TIM_Base_Start(&htim3);
 uint8_t T[3],H[3],Check;
-  uint16_t Tsum;
-
+uint16_t Tsum;
+*/
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
+	/*HAL_TIM_Base_Start(&htim3);
+	uint8_t T[3],H[3],Check;
+	uint16_t Tsum;*/
   /* Infinite loop */
   for(;;)
   {
-	  //HAL_UART_Transmit(&huart2, "Do\r\n", 4, 10);
+	  	  HAL_UART_Transmit(&huart2, "Do\r\n", 4, 10);
 	  	  DHT22_Start();
 	  	  Presence = DHT22_Check_Response();
 	  	  Rh_byte1 = DHT22_Read();
@@ -559,50 +611,8 @@ void StartDefaultTask(void *argument)
 	  	  }
 	  	  osDelay(3000);
 
-    osDelay(1);
+    //osDelay(1);
   }
-    /*
-	  HAL_UART_Transmit(&huart2, "Do\r\n", 4, 10);
-	  DHT22_Start();
-	  Presence = DHT22_Check_Response();
-	  Rh_byte1 = DHT22_Read();
-	  Rh_byte2 = DHT22_Read();
-	  Temp_byte1 = DHT22_Read();
-	  Temp_byte2 = DHT22_Read();
-	  SUM = DHT22_Read();
-	  Check = Rh_byte1 + Rh_byte2 + Temp_byte1 + Temp_byte2;
-
-	  //TEMP = ((Temp_byte1<<8)|Temp_byte2)&32767;
-	 // RH = ((Rh_byte1<<8)|Rh_byte2)&32767;
-
-	  Temp = (float)(TEMP/10.0);
-	  Humi = (float)(RH/10.0);
-
-	  Tsum = Temp_byte1*256 + Temp_byte2;
-	  T[0] = '0' + Tsum/100;
-	  T[1] = '0' + (Tsum%100)/10;
-	  T[2] = '0' + (Tsum%10);
-//	  H[0] = '0' + Temp_byte2/100;
-//	  H[1] = '0' + (Temp_byte2%100)/10;
-//	  H[2] = '0' + (Temp_byte2%10);
-	  HAL_UART_Transmit(&huart2, T, 3, 10);
-	  HAL_UART_Transmit(&huart2, "\r\n", 2, 10);
-//	  HAL_UART_Transmit(&huart2, H, 3, 10);
-//	  HAL_UART_Transmit(&huart2, "\r\n", 2, 10);
-	  if(Check == SUM){
-		  HAL_UART_Transmit(&huart2, "Good\r\n", 6, 10);
-	  }else{
-		  HAL_UART_Transmit(&huart2, "Bad\r\n", 5, 10);
-	  }
-	  osDelay(3000);
-
-
-    osDelay(1);
-  }*/
-	for(;;)
-		  {
-		    osDelay(1);
-		  }
   /* USER CODE END 5 */
 }
 
@@ -627,6 +637,7 @@ void StartTask02(void *argument)
 	  	    int echo=1;
 
 	  	    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+
 	  	    TIM1->CCR1 = 20;
 
 
@@ -671,8 +682,8 @@ void StartTask02(void *argument)
 	  	            }
 
 	  	            uint8_t pData[7] = {' ',' ',' ',' ',' ',' ',' '};
-	  	            sprintf(pData, "%d\r\n", delay);
-	  	            HAL_UART_Transmit(&huart2, &pData, 7, HAL_MAX_DELAY);
+	  	            //sprintf(pData, "%d\r\n", delay);
+	  	            //HAL_UART_Transmit(&huart2, &pData, 7, HAL_MAX_DELAY);
 	  	            osDelay(10);
 	  	        }
 	  	    }
@@ -698,6 +709,9 @@ void StartTask03(void *argument)
 	  {
 		  uint8_t sensorState = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5);
 		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5,sensorState);
+
+
+
 	  }
    osDelay(1);
   /* USER CODE END StartTask03 */
