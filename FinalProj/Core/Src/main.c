@@ -34,6 +34,12 @@
 /* USER CODE BEGIN PD */
 #define DHT22_PORT GPIOB
 #define DHT22_PIN GPIO_PIN_8
+
+#define HC_SRO4_PORT GPIOB
+#define HC_SRO4_PIN GPIO_PIN_6
+
+#define WF_PORT GPIOB
+#define WF_PIN GPIO_PIN_5
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -45,28 +51,37 @@
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
 
+UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
+UART_HandleTypeDef huart6;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityLow7,
 };
 /* Definitions for myTask02 */
 osThreadId_t myTask02Handle;
 const osThreadAttr_t myTask02_attributes = {
   .name = "myTask02",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityHigh7,
 };
 /* Definitions for myTask03 */
 osThreadId_t myTask03Handle;
 const osThreadAttr_t myTask03_attributes = {
   .name = "myTask03",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityAboveNormal7,
+};
+/* Definitions for myTask04 */
+osThreadId_t myTask04Handle;
+const osThreadAttr_t myTask04_attributes = {
+  .name = "myTask04",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityHigh6,
 };
 /* USER CODE BEGIN PV */
 
@@ -76,11 +91,14 @@ const osThreadAttr_t myTask03_attributes = {
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_TIM3_Init(void);
 static void MX_TIM1_Init(void);
+static void MX_TIM3_Init(void);
+static void MX_USART1_UART_Init(void);
+static void MX_USART6_UART_Init(void);
 void StartDefaultTask(void *argument);
 void StartTask02(void *argument);
 void StartTask03(void *argument);
+void StartTask04(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -88,6 +106,14 @@ void StartTask03(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart){
+
+}
+
+
+
+
 void delay(uint16_t Delay){ // will delay = Delay * 1 micro second (Delay should not exceed 2^16 - 1)
     __HAL_TIM_SET_COUNTER(&htim3,0);  // set the counter value a 0
     while ((uint16_t)__HAL_TIM_GET_COUNTER(&htim3) < Delay);// wait for the counter to reach the us input in the parameter
@@ -119,7 +145,7 @@ void DHT22_Start (void)
 {
 	Set_Pin_Output(DHT22_PORT, DHT22_PIN); // set the pin as output
 	HAL_GPIO_WritePin (DHT22_PORT, DHT22_PIN, 0);   // pull the pin low
-	HAL_Delay(18);   // wait for > 1ms
+	HAL_Delay(1200);   // wait for > 1ms
 
 	HAL_GPIO_WritePin (DHT22_PORT, DHT22_PIN, 1);   // pull the pin high
 	delay (20);   // wait for 30us
@@ -166,6 +192,29 @@ uint8_t DHT22_Read (void)
 	return i;
 }
 
+// delay
+int mainUltra = 0;
+int mainTemp = 0;
+int mainfloat = 0;
+
+
+int Delay_Array[3];
+//
+
+int u0=0;
+int u1=0;
+int u2=0;
+
+
+int mainState;
+
+int isTemp = 0;
+int isFloat= 0;
+int isUltra = 0;
+
+int isTempTran = 0;
+int isLevelTran = 0;
+
 /* USER CODE END 0 */
 
 /**
@@ -197,16 +246,11 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
-  MX_TIM3_Init();
   MX_TIM1_Init();
+  MX_TIM3_Init();
+  MX_USART1_UART_Init();
+  MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
-
-
-
-  //HAL_TIM_Base_Start(&htim3);
-  //uint8_t T[3],H[3],Check;
-  //uint16_t Tsum;
-
 
   /* USER CODE END 2 */
 
@@ -239,6 +283,9 @@ int main(void)
   /* creation of myTask03 */
   myTask03Handle = osThreadNew(StartTask03, NULL, &myTask03_attributes);
 
+  /* creation of myTask04 */
+  myTask04Handle = osThreadNew(StartTask04, NULL, &myTask04_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
@@ -255,40 +302,41 @@ int main(void)
   while (1)
   {
 
-    /* USER CODE END WHILE */
-	  	  /*HAL_UART_Transmit(&huart2, "Do\r\n", 4, 10);
-	  	  DHT22_Start();
-	  	  Presence = DHT22_Check_Response();
-	  	  Rh_byte1 = DHT22_Read();
-	  	  Rh_byte2 = DHT22_Read();
-	  	  Temp_byte1 = DHT22_Read();
-	  	  Temp_byte2 = DHT22_Read();
-	  	  SUM = DHT22_Read();
-	  	  Check = Rh_byte1 + Rh_byte2 + Temp_byte1 + Temp_byte2;
-	  	  /*
-	  	  TEMP = ((Temp_byte1<<8)|Temp_byte2)&32767;
-	  	  RH = ((Rh_byte1<<8)|Rh_byte2)&32767;
-	  	  */
-	  	  Temp = (float)(TEMP/10.0);
-	  	  Humi = (float)(RH/10.0);
 
-	  	  Tsum = Temp_byte1*256 + Temp_byte2;
-	  	  T[0] = '0' + Tsum/100;
-	  	  T[1] = '0' + (Tsum%100)/10;
-	  	  T[2] = '0' + (Tsum%10);
-	  //	  H[0] = '0' + Temp_byte2/100;
-	  //	  H[1] = '0' + (Temp_byte2%100)/10;
-	  //	  H[2] = '0' + (Temp_byte2%10);
-	  	  HAL_UART_Transmit(&huart2, T, 3, 10);
-	  	  HAL_UART_Transmit(&huart2, "\r\n", 2, 10);
-	  //	  HAL_UART_Transmit(&huart2, H, 3, 10);
-	  //	  HAL_UART_Transmit(&huart2, "\r\n", 2, 10);
-	  	  if(Check == SUM){
-	  		  HAL_UART_Transmit(&huart2, "Good\r\n", 6, 10);
-	  	  }else{
-	  		  HAL_UART_Transmit(&huart2, "Bad\r\n", 5, 10);
-	  	  }
-	  	  HAL_Delay(3000);*/
+
+//	  if(isUltra == 1) {
+//		  uint8_t pData_main[7] = {' ',' ',' ',' ',' ',' ',' '};
+//		  sprintf(pData_main, "%d\r\n", mainUltra);
+//		  HAL_UART_Transmit_IT(&huart1, &pData_main, 7);
+//
+//	  }
+
+	  /*if(isTemp == 1 && mainTemp != 0 && isUltra ==1) {
+		uint8_t T_main[3];
+		T_main[0] = '0' + mainTemp/100;
+		T_main[1] = '0' + (mainTemp%100)/10;
+		T_main[2] = '0' + (mainTemp%10);
+
+		  uint8_t pData_main[7] = {' ',' ',' ',' ',' ',' ',' '};
+		  sprintf(pData_main, "%d\r\n", mainUltra);
+		  //HAL_UART_Transmit_IT(&huart1, &pData_main, 7);
+
+		  uint8_t arr[10];
+		  int id = 0;
+		  for(int i=0; i<3; i++){
+			  arr[id++] = T_main[i];
+		  }
+		  for(int i=0; i<8; i++){
+			  arr[id++] = pData_main[i];
+		  }
+
+		  HAL_UART_Transmit_IT(&huart1, &arr, 10);
+	  }*/
+
+	 // uint8_t arr
+
+    /* USER CODE END WHILE */
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -352,7 +400,6 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 0 */
 
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
   TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
@@ -367,15 +414,6 @@ static void MX_TIM1_Init(void)
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
   if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
   {
     Error_Handler();
@@ -461,6 +499,39 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -494,6 +565,39 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
+  * @brief USART6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART6_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART6_Init 0 */
+
+  /* USER CODE END USART6_Init 0 */
+
+  /* USER CODE BEGIN USART6_Init 1 */
+
+  /* USER CODE END USART6_Init 1 */
+  huart6.Instance = USART6;
+  huart6.Init.BaudRate = 115200;
+  huart6.Init.WordLength = UART_WORDLENGTH_8B;
+  huart6.Init.StopBits = UART_STOPBITS_1;
+  huart6.Init.Parity = UART_PARITY_NONE;
+  huart6.Init.Mode = UART_MODE_TX_RX;
+  huart6.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart6.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART6_Init 2 */
+
+  /* USER CODE END USART6_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -512,9 +616,6 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -535,17 +636,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PB6 */
-  GPIO_InitStruct.Pin = GPIO_PIN_6;
+  /*Configure GPIO pins : PB6 PB8 */
+  GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_8;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB8 */
-  GPIO_InitStruct.Pin = GPIO_PIN_8;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
@@ -562,56 +656,37 @@ static void MX_GPIO_Init(void)
   * @param  argument: Not used
   * @retval None
   */
-/*
-HAL_TIM_Base_Start(&htim3);
-uint8_t T[3],H[3],Check;
-uint16_t Tsum;
-*/
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-	/*HAL_TIM_Base_Start(&htim3);
-	uint8_t T[3],H[3],Check;
-	uint16_t Tsum;*/
   /* Infinite loop */
   for(;;)
   {
-	  	  HAL_UART_Transmit(&huart2, "Do\r\n", 4, 10);
-	  	  DHT22_Start();
-	  	  Presence = DHT22_Check_Response();
-	  	  Rh_byte1 = DHT22_Read();
-	  	  Rh_byte2 = DHT22_Read();
-	  	  Temp_byte1 = DHT22_Read();
-	  	  Temp_byte2 = DHT22_Read();
-	  	  SUM = DHT22_Read();
-	  	  Check = Rh_byte1 + Rh_byte2 + Temp_byte1 + Temp_byte2;
+	  /*if(isTemp == 1 && mainTemp != 0 && isUltra ==1) {
+		uint8_t T_main[3];
+		T_main[0] = '0' + mainTemp/100;
+		T_main[1] = '0' + (mainTemp%100)/10;
+		T_main[2] = '0' + (mainTemp%10);
 
-	  	  //TEMP = ((Temp_byte1<<8)|Temp_byte2)&32767;
-	  	 // RH = ((Rh_byte1<<8)|Rh_byte2)&32767;
+		  uint8_t pData_main[7] = {' ',' ',' ',' ',' ',' ',' '};
+		  sprintf(pData_main, "%d\r\n", mainUltra);
+		  //HAL_UART_Transmit_IT(&huart1, &pData_main, 7);
 
-	  	  Temp = (float)(TEMP/10.0);
-	  	  Humi = (float)(RH/10.0);
+		  uint8_t arr[10];
+		  int id = 0;
+		  for(int i=0; i<3; i++){
+			  arr[id++] = T_main[i];
+		  }
+		  for(int i=0; i<8; i++){
+			  arr[id++] = pData_main[i];
+		  }
 
-	  	  Tsum = Temp_byte1*256 + Temp_byte2;
-	  	  T[0] = '0' + Tsum/100;
-	  	  T[1] = '0' + (Tsum%100)/10;
-	  	  T[2] = '0' + (Tsum%10);
-	  //	  H[0] = '0' + Temp_byte2/100;
-	  //	  H[1] = '0' + (Temp_byte2%100)/10;
-	  //	  H[2] = '0' + (Temp_byte2%10);
-	  	  HAL_UART_Transmit(&huart2, T, 3, 10);
-	  	  HAL_UART_Transmit(&huart2, "\r\n", 2, 10);
-	  //	  HAL_UART_Transmit(&huart2, H, 3, 10);
-	  //	  HAL_UART_Transmit(&huart2, "\r\n", 2, 10);
-	  	  if(Check == SUM){
-	  		  HAL_UART_Transmit(&huart2, "Good\r\n", 6, 10);
-	  	  }else{
-	  		  HAL_UART_Transmit(&huart2, "Bad\r\n", 5, 10);
-	  	  }
-	  	  osDelay(3000);
+		  HAL_UART_Transmit_IT(&huart1, &arr, 10);
+	  }*/
 
-    //osDelay(1);
+
+    osDelay(1);
   }
   /* USER CODE END 5 */
 }
@@ -626,72 +701,93 @@ void StartDefaultTask(void *argument)
 void StartTask02(void *argument)
 {
   /* USER CODE BEGIN StartTask02 */
+	HAL_TIM_Base_Start(&htim3);
+			uint8_t T[3],H[3],Check;
+			uint16_t Tsum, Hsum;
   /* Infinite loop */
+  for(;;)
+  {
+	  isTemp = 1;
+	 // taskENTER_CRITICAL();
+	  	  HAL_UART_Transmit(&huart2, "Do\r\n", 4, 10);
+	  	  DHT22_Start();
+	  	  Presence = DHT22_Check_Response();
+	  	  Rh_byte1 = DHT22_Read();
+	  	  Rh_byte2 = DHT22_Read();
 
+	  	  Temp_byte1 = DHT22_Read();
+	  	  Temp_byte2 = DHT22_Read();
 
-	  	    //pwm for trig
-	  	    int hit = 0;
-	  	    int miss_count = 0;
-	  	    uint8_t state = 0;
-	  	    int delay;
-	  	    int echo=1;
+	  	  SUM = DHT22_Read();
+	  	  Check = Rh_byte1 + Rh_byte2 + Temp_byte1 + Temp_byte2;
+	  	  //HAL_UART_Transmit(&huart2, SUM, sizeof(SUM), HAL_MAX_DELAY);
 
-	  	    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+	  	TEMP = ((Temp_byte1<<8)|Temp_byte2)&32767;
+	  	//RH = ((Rh_byte1<<8)|Rh_byte2)&32767;
 
-	  	    TIM1->CCR1 = 20;
-
-
-	  	    for (;;) {
-	  	        uint8_t test = "TEST\r\n";
-	  	        //HAL_UART_Transmit(&huart1, &test, sizeof(test), HAL_MAX_DELAY);
-	  	        delay = 1000001;
-	  	        echo =  HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6);
-	  	        // HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, echo);
-
-	  	        if (echo) {
-	  	            delay = 0;
-	  	            while ( HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_6)) {
-	  	                delay++;
-	  	            }
-	  	        }
-
-	  	        if (delay < 1000001) {
-
-	  	            if (delay < 1000) {
-	  	                hit++;
-	  	                miss_count = 0;
-	  	            }
-	  	            else {
-	  	                if (miss_count++ > 100) {
-	  	                    hit = 0;
-	  	                }
-	  	             }
-
-	  	            if (hit > 100) {
-	  	                if (state == 0) {
-	  	                    //HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, 1);
-
-	  	                    state = 1;
-	  	                }
-	  	            } else {
-	  	                if (state == 1) {
-	  	                    //HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, 0);
-
-	  	                    state = 0;
-	  	                }
-	  	            }
-
-	  	            uint8_t pData[7] = {' ',' ',' ',' ',' ',' ',' '};
-	  	            //sprintf(pData, "%d\r\n", delay);
-	  	            //HAL_UART_Transmit(&huart2, &pData, 7, HAL_MAX_DELAY);
-	  	            osDelay(10);
-	  	        }
-	  	    }
-	  	  //osDelay(10);
+	  	  Temp = (float)(TEMP/10.0);
+	  		 	  //Humi = (float)(RH/10.0);
 
 
 
-	 //osDelay(1);
+	  		 	 /* Hsum = Rh_byte1*256 + Rh_byte2;
+
+	  		 	H[0] = '0' + Hsum/100;
+	  		    H[1] = '0' + (Hsum%100)/10;
+	  		 	H[2] = '0' + (Hsum%10);*/
+
+
+
+	  		 	/*HAL_UART_Transmit(&huart2, "Humid: ", 7, HAL_MAX_DELAY);
+	  		 	HAL_UART_Transmit(&huart2, H, 3, 10);*/
+
+	  		 	//HAL_UART_Transmit(&huart2, "\r\n", 2, 10);
+
+	  		 		 	  if(Check == SUM){
+	  		 		 		  if(Temp_byte1>127) {Tsum = (float)Temp_byte2/10*(-1);}
+	  		 		 		  else {Tsum = (float)((Temp_byte1<<8) | Temp_byte2)/10;}
+
+
+	  		 		 		T[0] = '0' + Tsum/100;
+	  		 		 		T[1] = '0' + (Tsum%100)/10;
+	  		 		 		T[2] = '0' + (Tsum%10);
+
+	  		 		 	// HUART 1-----------------
+
+	  		 		 		//isTempTran = 0;
+							HAL_UART_Transmit(&huart1, T, 3, HAL_MAX_DELAY);
+							HAL_UART_Transmit(&huart1, "\r\n", 2, HAL_MAX_DELAY);
+							//isTempTran = 1;
+
+
+							HAL_UART_Transmit(&huart2, "Temp: ", 6, HAL_MAX_DELAY);
+	  		 		 		HAL_UART_Transmit(&huart2, T, 3, 10);
+
+
+
+	  		 		 		HAL_UART_Transmit(&huart2, "\r\n", 2, 10);
+
+
+	  		 		 		  HAL_UART_Transmit(&huart2, "Good\r\n", 6, 10);
+
+	  		 		 		  mainTemp = Tsum;
+
+	  		 		 		  //	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5,sensorState);
+
+	  		 		 		  //HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, SET);
+	  		 		 	  }else{
+	  		 		 		  HAL_UART_Transmit(&huart2, "Bad\r\n", 5, 10);
+	  		 		 	  }
+	  		  		 	HAL_UART_Transmit(&huart2, "\r\n", 2, 10);
+
+
+	  		  		  osDelay(500);
+
+	  	}
+
+
+
+
   /* USER CODE END StartTask02 */
 }
 
@@ -705,16 +801,138 @@ void StartTask02(void *argument)
 void StartTask03(void *argument)
 {
   /* USER CODE BEGIN StartTask03 */
-	  for(;;)
-	  {
-		  uint8_t sensorState = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5);
-		  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5,sensorState);
+  /* Infinite loop */
+  for(;;)
+  {
+	  isFloat = 1;
+	  //HAL_UART_Transmit(&huart2, "3\r\n", 3, 10);
+	  uint8_t sensorState = HAL_GPIO_ReadPin(WF_PORT, WF_PIN);
+	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5,sensorState);
+	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0,sensorState);
 
+	  mainfloat = sensorState;
 
-
-	  }
-   osDelay(1);
+    osDelay(1);
+  }
   /* USER CODE END StartTask03 */
+}
+
+/* USER CODE BEGIN Header_StartTask04 */
+/**
+* @brief Function implementing the myTask04 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask04 */
+void StartTask04(void *argument)
+{
+  /* USER CODE BEGIN StartTask04 */
+	//taskENTER_CRITICAL();
+	isUltra = 1;
+	int hit = 0;
+	int miss_count = 0;
+	uint8_t state = 0;
+	int delay;
+	int echo=1;
+	int id=0;
+	int countultra = 0;
+	int div = 50;
+	uint8_t arr[div];
+
+	int ultmp[3];
+
+	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+
+	TIM1->CCR1 = 20;
+  /* Infinite loop */
+  for(;;)
+  {
+	//HAL_UART_Transmit(&huart2, "4\r\n", 3, 10);
+	uint8_t test = "TEST\r\n";
+	delay = 1000001;
+	echo =  HAL_GPIO_ReadPin(HC_SRO4_PORT,HC_SRO4_PIN);
+
+	if (echo) {
+		delay = 0;
+		while ( HAL_GPIO_ReadPin(HC_SRO4_PORT,HC_SRO4_PIN)) {
+			delay++;
+		}
+	}
+
+	if (delay < 1000001) {
+
+		if (delay < 1000) {
+			hit++;
+			miss_count = 0;
+		} else {
+			if (miss_count++ > 100) { hit = 0; }
+		 }
+
+		if (hit > 100) {
+			if (state == 0) {
+				//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, 1);
+				state = 1;
+			}
+		} else {
+			if (state == 1) {
+				//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, 0);
+
+				state = 0;
+			}
+		}
+
+
+		uint8_t pData[7] = {' ',' ',' ',' ',' ',' ',' '};
+
+			if(countultra<div){
+				arr[id] = delay;
+				id = (id+1)%div;
+				countultra++;
+			}
+			else{
+				arr[id] = delay;
+				id = (id+1)%div;
+
+				delay = 0;
+
+				for(int i=0; i<div; i++){
+					delay += arr[i];
+				}
+
+				delay = delay/div;
+
+				if(mainfloat == 1 && delay <= 120){
+					sprintf(pData, "%d", delay);
+
+				HAL_UART_Transmit(&huart1, &pData, 7, HAL_MAX_DELAY);
+				HAL_UART_Transmit(&huart1, "\r\n", 2, HAL_MAX_DELAY);
+
+				HAL_UART_Transmit(&huart2, "Ultra: ", 7, HAL_MAX_DELAY);
+				HAL_UART_Transmit(&huart2, &pData, 7,HAL_MAX_DELAY);
+				HAL_UART_Transmit(&huart2, "\r\n", 2, 10);
+
+				}else {
+					HAL_UART_Transmit(&huart2, "noooo: ", 7, HAL_MAX_DELAY);
+					HAL_UART_Transmit(&huart2, "\r\n", 2, 10);
+
+				}
+
+
+			}
+
+			//HAL_UART_Transmit(&huart2, "ABCTg: ", 7, HAL_MAX_DELAY);
+
+	}
+
+
+
+
+
+
+
+	osDelay(10);
+  }
+  /* USER CODE END StartTask04 */
 }
 
 /**
